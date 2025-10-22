@@ -220,8 +220,13 @@ func (t *typer) asInstrumentable(execElf *exec.FileInfo) ebpf.Instrumentable {
 		log.Debug("acquired ELF parse semaphore after waiting")
 	}
 	
-	// Always release the semaphore when done
+	// Always release the semaphore when done, even on panic
 	defer func() {
+		if r := recover(); r != nil {
+			<-elfParseSem
+			log.Debug("released ELF parse semaphore after panic")
+			panic(r) // Re-panic after cleanup
+		}
 		<-elfParseSem
 		log.Debug("released ELF parse semaphore")
 	}()
