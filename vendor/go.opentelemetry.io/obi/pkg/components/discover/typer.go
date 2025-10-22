@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"strconv"
 	"strings"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -26,6 +28,22 @@ import (
 	"go.opentelemetry.io/obi/pkg/pipe/swarm/swarms"
 	"go.opentelemetry.io/obi/pkg/services"
 )
+
+var (
+	// elfParseSem limits concurrent ELF symbol parsing to prevent memory spikes
+	// when multiple processes of the same binary start simultaneously
+	elfParseSem chan struct{}
+)
+
+func init() {
+	maxConcurrent := 2
+	if val := os.Getenv("BEYLA_MAX_CONCURRENT_ELF"); val != "" {
+		if n, err := strconv.Atoi(val); err == nil && n > 0 {
+			maxConcurrent = n
+		}
+	}
+	elfParseSem = make(chan struct{}, maxConcurrent)
+}
 
 type InstrumentedExecutable struct {
 	Type                 svc.InstrumentableType
@@ -180,11 +198,41 @@ func (t *typer) FilterClassify(evs []Event[ProcessMatch]) []Event[ebpf.Instrumen
 // in case of belonging to a forked process, returns its parent.
 func (t *typer) asInstrumentable(execElf *exec.FileInfo) ebpf.Instrumentable {
 	log := t.log.With("pid", execElf.Pid, "comm", execElf.CmdExePath)
+	
+	// Check cache first to avoid expensive ELF symbol parsing
 	if ic, ok := t.instrumentableCache.Get(execElf.Ino); ok {
 		log.Debug("new instance of existing executable", "type", ic.Type)
 		return ebpf.Instrumentable{Type: ic.Type, FileInfo: execElf, Offsets: ic.Offsets, InstrumentationError: ic.InstrumentationError}
 	}
 
+	// Acquire semaphore to limit concurrent ELF parsing
+	// This prevents memory spikes when multiple processes start simultaneously
+	select {
+	case elfParseSem <- struct{}{}:
+		// Got a token, proceed
+		log.Debug("acquired ELF parse semaphore")
+	default:
+		// Semaphore is full, log and wait
+		log.Debug("waiting for ELF parse semaphore",
+			"queue_length", len(elfParseSem),
+			"max_concurrent", cap(elfParseSem))
+		elfParseSem <- struct{}{} // This will block
+		log.Debug("acquired ELF parse semaphore after waiting")
+	}
+	
+	// Always release the semaphore when done
+	defer func() {
+		<-elfParseSem
+		log.Debug("released ELF parse semaphore")
+	}()
+	
+	// Double-check cache after acquiring semaphore
+	// Another goroutine may have populated it while we waited
+	if ic, ok := t.instrumentableCache.Get(execElf.Ino); ok {
+		log.Debug("cache hit after semaphore acquisition", "type", ic.Type)
+		return ebpf.Instrumentable{Type: ic.Type, FileInfo: execElf, Offsets: ic.Offsets, InstrumentationError: ic.InstrumentationError}
+	}
+	
 	log.Debug("getting instrumentable information")
 	// look for suitable Go application first
 	offsets, ok, err := t.inspectOffsets(execElf)
