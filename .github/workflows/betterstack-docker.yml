@@ -37,11 +37,8 @@ jobs:
           echo "Applying BetterStack memory leak fix..."
           patch -p1 < fix-memory-leak-minimal.patch
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Depot
+        uses: depot/setup-action@v1
 
       - name: Log in to DockerHub
         if: github.event_name != 'pull_request'
@@ -71,15 +68,15 @@ jobs:
           make test
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: depot/build-push-action@v1
         with:
+          project: ${{ secrets.DEPOT_PROJECT_ID }}
+          token: ${{ secrets.DEPOT_API_TOKEN }}
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             VERSION=${{ github.ref_name }}
             COMMIT=${{ github.sha }}
