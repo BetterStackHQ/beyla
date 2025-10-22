@@ -57,10 +57,13 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             # For version tags, use the version
             type=ref,event=tag
-            # For branches, use branch name
+            # For pull requests, use pr-X format
+            type=ref,event=pr,prefix=pr-
+            # For branches, use branch name (sanitized)
             type=ref,event=branch
-            # SHA prefix for all builds
-            type=sha,prefix={{branch}}-,format=short
+            # SHA prefix - use pr-X for PRs, branch for others
+            type=sha,prefix=pr-{{pr}}-,format=short,enable=${{ github.event_name == 'pull_request' }}
+            type=sha,prefix={{branch}}-,format=short,enable=${{ github.event_name != 'pull_request' }}
 
       - name: Build and test
         run: |
