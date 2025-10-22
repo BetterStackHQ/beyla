@@ -1,0 +1,48 @@
+--- a/vendor/go.opentelemetry.io/obi/pkg/components/discover/watcher_proc.go
++++ b/vendor/go.opentelemetry.io/obi/pkg/components/discover/watcher_proc.go
+@@ -469,6 +469,11 @@ func processAgeFunc(pid int32) time.Duration {
+ 	return time.Since(createTime)
+ }
+ 
++const (
++	// Maximum ports to track per process to prevent memory exhaustion
++	maxPortsPerProcess = 1000
++)
++
+ // fetchProcessConnections returns a map with the PIDs of all the running processes as a key,
+ // and the open ports for the given process as a value
+ func fetchProcessPorts(scanPorts bool) (map[PID]ProcessAttrs, error) {
+@@ -488,11 +493,29 @@ func fetchProcessPorts(scanPorts bool) (map[PID]ProcessAttrs, error) {
+ 			log.Debug("can't get connections for process. Skipping", "pid", pid, "error", err)
+ 			continue
+ 		}
+-		var openPorts []uint32
+-		// TODO: Cap the size of this array, leaking client ephemeral ports will cause this to grow very long
++		
++		// Use a map to deduplicate ports first
++		portSet := make(map[uint32]bool)
+ 		for _, conn := range conns {
+-			openPorts = append(openPorts, conn.Laddr.Port)
++			portSet[conn.Laddr.Port] = true
++		}
++		
++		// Convert to array with size limit to prevent memory exhaustion
++		var openPorts []uint32
++		cappedPorts := false
++		for port := range portSet {
++			if len(openPorts) >= maxPortsPerProcess {
++				cappedPorts = true
++				break
++			}
++			openPorts = append(openPorts, port)
+ 		}
++		
++		// Log at debug level when we cap ports (not warn to avoid log spam)
++		if cappedPorts {
++			log.Debug("capped ports for process to prevent memory exhaustion",
++				"pid", pid, "total_unique_ports", len(portSet), "tracked_ports", len(openPorts))
++		}
++		
+ 		processes[PID(pid)] = ProcessAttrs{pid: PID(pid), openPorts: openPorts, processAge: time.Duration(0)}
+ 	}
+ 	return processes, nil
