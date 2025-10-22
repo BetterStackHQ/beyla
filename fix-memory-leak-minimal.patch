@@ -1,7 +1,7 @@
-diff --git a/vendor/go.opentelemetry.io/obi/pkg/components/discover/watcher_proc.go b/tmp/watcher_proc_modified.go
+diff --git a/vendor/go.opentelemetry.io/obi/pkg/components/discover/watcher_proc.go b/vendor/go.opentelemetry.io/obi/pkg/components/discover/watcher_proc.go
 index 60196c852..fcd0189e8 100644
 --- a/vendor/go.opentelemetry.io/obi/pkg/components/discover/watcher_proc.go
-+++ b/tmp/watcher_proc_modified.go
++++ b/vendor/go.opentelemetry.io/obi/pkg/components/discover/watcher_proc.go
 @@ -468,6 +468,11 @@ func (r *procStatReader) processAge(pid int32) time.Duration {
  // overridden in tests
  var processPidsFunc = process.Pids
@@ -45,3 +45,4 @@ index 60196c852..fcd0189e8 100644
  		}
  		processes[PID(pid)] = ProcessAttrs{pid: PID(pid), openPorts: openPorts, processAge: time.Duration(0)}
  	}
+
