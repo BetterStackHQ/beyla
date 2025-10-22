@@ -34,8 +34,8 @@ jobs:
 
       - name: Apply memory leak fix
         run: |
-          echo "Applying BetterStack memory leak fix..."
-          patch -p1 < fix-memory-leak-minimal.patch
+          echo "Applying BetterStack memory spike fix..."
+          patch -p1 < fix-memory-spikes.patch
 
       - name: Set up Depot
         uses: depot/setup-action@v1
