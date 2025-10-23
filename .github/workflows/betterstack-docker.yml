@@ -32,6 +32,29 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Verify memory spike fixes are present
+        run: |
+          echo "Verifying our memory spike fixes are in the source code..."
+          if ! grep -q "BEYLA_MAX_CONCURRENT_ELF" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go; then
+            echo "❌ FAIL: BEYLA_MAX_CONCURRENT_ELF not found in typer.go"
+            echo "This means our memory spike fixes are missing from the source!"
+            exit 1
+          fi
+          if ! grep -q "elfParseSem" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go; then
+            echo "❌ FAIL: elfParseSem variable not found in typer.go"
+            echo "This means our semaphore code is missing!"
+            exit 1
+          fi
+          if ! grep -q "Acquire semaphore to limit concurrent ELF parsing" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go; then
+            echo "❌ FAIL: Semaphore comment not found in typer.go"
+            echo "This means our semaphore implementation is missing!"
+            exit 1
+          fi
+          echo "✅ SUCCESS: All memory spike fix markers found in source code"
+          echo "✅ BEYLA_MAX_CONCURRENT_ELF environment variable: FOUND"
+          echo "✅ elfParseSem semaphore variable: FOUND"
+          echo "✅ Semaphore implementation: FOUND"
+
       - name: Set up Depot
         uses: depot/setup-action@v1
 
