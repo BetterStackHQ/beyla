@@ -86,6 +86,8 @@ jobs:
         run: |
           # Everything is already vendored and committed, just compile
           make compile
+          # Install test prerequisites
+          make prereqs
           make test
 
       - name: Build and push Docker image
