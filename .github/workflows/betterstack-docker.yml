@@ -32,11 +32,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Apply memory leak fix
-        run: |
-          echo "Applying BetterStack memory spike fix..."
-          patch -p1 < fix-memory-spikes.patch
-
       - name: Set up Depot
         uses: depot/setup-action@v1
 
