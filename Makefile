@@ -197,14 +197,32 @@ copy-obi-vendor:
 	go get go.opentelemetry.io/obi
 	go mod vendor
 
+.PHONY: copy-generated-files-only
+copy-generated-files-only:
+	@echo "### Copying generated files without overwriting vendor patches..."
+	@if [ -d ".obi-src" ]; then \
+		cp -f .obi-src/pkg/internal/otelsdk/grafana-opentelemetry-java.jar vendor/go.opentelemetry.io/obi/pkg/internal/otelsdk/ 2>/dev/null || true; \
+		find .obi-src -name "*bpfel.go" -exec cp {} vendor/go.opentelemetry.io/obi/pkg/internal/ebpf/ \; 2>/dev/null || true; \
+		find .obi-src -name "*bpfeb.go" -exec cp {} vendor/go.opentelemetry.io/obi/pkg/internal/ebpf/ \; 2>/dev/null || true; \
+		echo "Generated files copied successfully"; \
+	else \
+		echo "No .obi-src directory found, skipping generated file copy"; \
+	fi
+
 .PHONY: vendor-obi
 vendor-obi: obi-submodule docker-generate copy-obi-vendor
+
+.PHONY: vendor-obi-preserve-patches  
+vendor-obi-preserve-patches: obi-submodule docker-generate copy-generated-files-only
 
 .PHONY: verify
 verify: prereqs lint-dashboard vendor-obi lint test
 
 .PHONY: build
 build: vendor-obi verify compile
+
+.PHONY: build-preserve-patches
+build-preserve-patches: vendor-obi-preserve-patches compile
 
 .PHONY: all
 all: vendor-obi build

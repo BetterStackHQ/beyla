@@ -36,10 +36,19 @@ COPY third_party_licenses.csv third_party_licenses.csv
 ENV TOOLS_DIR=/go/bin
 
 # Build
+RUN echo "=== Verifying patches before build ===" && \
+    grep -q "BEYLA_MAX_CONCURRENT_ELF" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go && \
+    echo "✅ Patches present before build steps" || (echo "❌ Patches missing before build steps" && exit 1)
+
 RUN if [ -z "${DEV_OBI}" ]; then \
     make generate && \
     make copy-obi-vendor \
     ; fi
+
+RUN echo "=== Verifying patches after generate/vendor steps ===" && \
+    grep -q "BEYLA_MAX_CONCURRENT_ELF" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go && \
+    echo "✅ Patches still present after generate/vendor steps" || (echo "❌ Patches overwritten by generate/vendor steps" && exit 1)
+
 RUN make compile
 
 # Create final image from minimal + built binary
