@@ -84,7 +84,8 @@ jobs:
 
       - name: Build and test
         run: |
-          make build-preserve-patches
+          # Everything is already vendored and committed, just compile
+          make compile
           make test
 
       - name: Build and push Docker image
