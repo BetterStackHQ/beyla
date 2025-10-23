@@ -49,6 +49,10 @@ RUN echo "=== Verifying patches after generate/vendor steps ===" && \
     grep -q "BEYLA_MAX_CONCURRENT_ELF" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go && \
     echo "✅ Patches still present after generate/vendor steps" || (echo "❌ Patches overwritten by generate/vendor steps" && exit 1)
 
+RUN echo "=== FINAL VERIFICATION: Verifying patches immediately before compilation ===" && \
+    grep -q "BEYLA_MAX_CONCURRENT_ELF" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go && \
+    echo "✅ CONFIRMED: Patches present, proceeding with compilation" || (echo "❌ CRITICAL: Patches missing before compilation!" && exit 1)
+
 RUN make compile
 
 # Create final image from minimal + built binary
