@@ -84,7 +84,8 @@ jobs:
 
       - name: Build and test
         run: |
-          make build
+          # Skip vendor regeneration since we have patched vendor code
+          make compile
           make test
 
       - name: Build and push Docker image
