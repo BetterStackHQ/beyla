@@ -32,19 +32,33 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Apply memory leak fix
+      - name: Verify memory spike fixes are present
         run: |
-          echo "Applying BetterStack memory leak fix..."
-          patch -p1 < fix-memory-leak-minimal.patch
+          echo "Verifying our memory spike fixes are in the source code..."
+          if ! grep -q "BEYLA_MAX_CONCURRENT_ELF" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go; then
+            echo "❌ FAIL: BEYLA_MAX_CONCURRENT_ELF not found in typer.go"
+            echo "This means our memory spike fixes are missing from the source!"
+            exit 1
+          fi
+          if ! grep -q "elfParseSem" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go; then
+            echo "❌ FAIL: elfParseSem variable not found in typer.go"
+            echo "This means our semaphore code is missing!"
+            exit 1
+          fi
+          if ! grep -q "Acquire semaphore to limit concurrent ELF parsing" vendor/go.opentelemetry.io/obi/pkg/components/discover/typer.go; then
+            echo "❌ FAIL: Semaphore comment not found in typer.go"
+            echo "This means our semaphore implementation is missing!"
+            exit 1
+          fi
+          echo "✅ SUCCESS: All memory spike fix markers found in source code"
+          echo "✅ BEYLA_MAX_CONCURRENT_ELF environment variable: FOUND"
+          echo "✅ elfParseSem semaphore variable: FOUND"
+          echo "✅ Semaphore implementation: FOUND"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Depot
+        uses: depot/setup-action@v1
 
       - name: Log in to DockerHub
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -60,29 +74,36 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             # For version tags, use the version
             type=ref,event=tag
-            # For branches, use branch name
+            # For pull requests, use pr-X format
+            type=ref,event=pr,prefix=pr-
+            # For branches, use branch name (sanitized)
             type=ref,event=branch
-            # SHA prefix for all builds
-            type=sha,prefix={{branch}}-,format=short
+            # SHA prefix - use pr-X for PRs, branch for others
+            type=sha,prefix=pr-{{pr}}-,format=short,enable=${{ github.event_name == 'pull_request' }}
+            type=sha,prefix={{branch}}-,format=short,enable=${{ github.event_name != 'pull_request' }}
 
       - name: Build and test
         run: |
-          make build
+          # Everything is already vendored and committed, just compile
+          make compile
+          # Install test prerequisites
+          make prereqs
           make test
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: depot/build-push-action@v1
         with:
+          project: ${{ secrets.DEPOT_PROJECT_ID }}
+          token: ${{ secrets.DEPOT_API_TOKEN }}
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             VERSION=${{ github.ref_name }}
             COMMIT=${{ github.sha }}
+            DEV_OBI=1
 
       - name: Update Docker Hub description
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
